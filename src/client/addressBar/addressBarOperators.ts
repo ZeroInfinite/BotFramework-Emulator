@@ -31,11 +31,11 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-import { getSettings, ISettings, addSettingsListener } from '../settings';
-import { Settings as ServerSettings } from '../../types/serverSettingsTypes';
+import { getSettings } from '../settings';
+import { LogActions } from '../reducers';
 import { AddressBarActions, ConversationActions, ServerSettingsActions } from '../reducers';
-import { IBot, newBot } from '../../types/botTypes';
-import * as log from '../log';
+import { IBot } from '../../types/botTypes';
+import { BotEmulatorContext } from '../botEmulatorContext';
 
 
 export class AddressBarOperators {
@@ -112,12 +112,39 @@ export class AddressBarOperators {
         ServerSettingsActions.remote_setActiveBot(bot.botId);
     }
 
+    static isActiveBot(bot: IBot): boolean {
+        const settings = getSettings();
+        return !settings.serverSettings.activeBot ||                // no active bot is set, or
+            settings.serverSettings.activeBot.length === 0 ||       // no active bot is set, or
+            settings.serverSettings.activeBot === bot.botId;        // active bot matches current bot
+    }
+
     static connectToBot(bot: IBot) {
+        if (!AddressBarOperators.isActiveBot(bot)) {
+            LogActions.clear();
+        }
         AddressBarOperators.selectBot(null);
         AddressBarOperators.addOrUpdateBot(bot);
         AddressBarOperators.activateBot(bot);
         ConversationActions.newConversation();
         AddressBarActions.hideBotCreds();
         AddressBarActions.hideSearchResults();
+    }
+
+    static assignBot(botContext: BotEmulatorContext): void {
+        const bot = AddressBarOperators.selectBotForUrl(botContext.endpoint, null) ||
+                    botContext.toBot();
+
+        // update the bot with the passed in information
+        const updatedBot = botContext.updateBot(bot);
+
+        if (!AddressBarOperators.isActiveBot(updatedBot)) {
+            LogActions.clear();
+        }
+
+        AddressBarOperators.setText(botContext.endpoint);
+        AddressBarOperators.selectBot(updatedBot);
+        AddressBarOperators.connectToBot(updatedBot);
+        AddressBarOperators.selectBot(updatedBot);
     }
 }
